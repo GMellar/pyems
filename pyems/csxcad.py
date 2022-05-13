@@ -21,6 +21,7 @@ from CSXCAD.CSPrimitives import (
     CSPrimBox,
     CSPrimCylinder,
     CSPrimCylindricalShell,
+    CSPrimSphere,
 )
 from CSXCAD.CSTransform import CSTransform
 from pyems.coordinate import (
@@ -149,6 +150,37 @@ def construct_box(
     apply_transform(cs_box, translate)
     return cs_box
 
+def construct_sphere(
+    prop: CSProperties,
+    center: C3Tuple,
+    radius: float,
+    priority: int,
+    transform: CSTransform = None,
+) -> CSPrimitives:
+    """"""
+    center_coordinates = []
+    center_coordinates.append(center.x)
+    center_coordinates.append(center.y)
+    center_coordinates.append(center.z)
+    center = center_coordinates
+    
+    if transform is None:
+        cs_sphere = _add_sphere(
+            prop=prop, priority=priority, center=center, radius=radius
+        )
+        return cs_sphere
+
+    cs_sphere = _add_sphere(
+        prop=prop,
+        priority=priority,
+        center=center,
+        radius=radius,
+    )
+    apply_transform(cs_sphere, transform)
+    translate = CSTransform()
+    translate.AddTransform("Translate", center.coordinate_list())
+    apply_transform(cs_sphere, translate)
+    return cs_sphere
 
 def _circle_points(
     center: C3Tuple, radius: float, normal: Axis, poly_faces: int
@@ -509,4 +541,19 @@ def _add_box(
     stop = fp_nearest(stop)
 
     prim = prop.AddBox(priority=priority, start=start, stop=stop)
+    return prim
+
+def _add_sphere(
+    prop: CSProperties,
+    priority: int,
+    center: List[float],
+    radius: float,
+) -> CSPrimitives:
+    """"""
+    # Round unconditionally even though doing so may be unnecessary
+    # (some dimensions will have nonzero length). This shouldn't have
+    # a downside and checking would take longer.
+    center = fp_nearest(center)
+
+    prim = prop.AddSphere(priority=priority, center=center, radius=radius)
     return prim
