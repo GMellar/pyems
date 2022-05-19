@@ -4,6 +4,8 @@ from bisect import bisect_left, bisect_right, insort_left
 from warnings import warn
 import numpy as np
 import scipy.optimize
+import scipy.signal
+
 from CSXCAD.CSPrimitives import CSPrimitives
 from pyems.simulation import Simulation
 from pyems.calc import wavelength
@@ -19,7 +21,7 @@ from pyems.fp import (
     fp_gep,
 )
 from pyems.priority import priorities
-
+from pprint import pprint
 
 class Type(Enum):
     """
@@ -518,6 +520,7 @@ class Mesh:
         simulation_bounds: Tuple[
             Tuple[float, float], Tuple[float, float], Tuple[float, float]
         ] = None,
+        mesh_fixup_res = None
     ):
         """
         :param sim: Simulation object to which mesh should be added.
@@ -560,6 +563,7 @@ class Mesh:
         self.min_lines = min_lines
         self.expand_bounds = expand_bounds
         self.simulation_bounds = simulation_bounds
+        self.mesh_fixup_res = mesh_fixup_res
         # Keep track of mesh regions already applied. This is an array
         # of 3 elements. The 1st element is a list of ranges in the
         # x-dimension that have already been meshed. The 2nd
@@ -616,6 +620,35 @@ class Mesh:
         self.size_ordered_bounded_types = _sort_bounded_types(bounded_types)
         self._gen_mesh_for_bounded_types(self.size_ordered_bounded_types)
         self._trim_air_mesh()
+        
+        if self.mesh_fixup_res != None:
+            f = self.mesh_lines
+            peaks_found = 1
+            
+            while peaks_found > 0:
+                peaks_found = 0
+                
+                for dim in range(3):
+                    differences = abs(np.diff(f[dim]))
+                    #pprint(differences)
+                    peaks, _ = scipy.signal.find_peaks(-differences, threshold=-self.mesh_fixup_res)
+                    pprint(peaks)
+                    peaks_to_remove = []
+                    
+                    if len(peaks) == 0:
+                        break
+                    
+                    for i in peaks:
+                        if abs(f[dim][i] - f[dim][i - 1]) < self.mesh_fixup_res and self._is_fixed_line(dim, f[dim][i - 1]) == False: 
+                            peaks_to_remove.append(i - 1)
+                        if abs(f[dim][i] - f[dim][i + 1]) < self.mesh_fixup_res and self._is_fixed_line(dim, f[dim][i + 1]) == False: 
+                            peaks_to_remove.append(i + 1)
+                    
+                    peaks_found += len(peaks_to_remove)
+                    f[dim] = np.delete(f[dim], peaks_to_remove).tolist()
+                    print("Removed " + str(len(peaks_to_remove)) + " lines from dimension " + str(dim))
+                    pprint(peaks_to_remove)    
+                   
         self._smooth_pml_mesh_lines()
 
         self._set_mesh_from_lines()
